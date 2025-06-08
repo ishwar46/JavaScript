@@ -52,176 +52,22 @@ const MAX_LOGIN_ATTEMPTS = 5;
  * User registration controller
  *
  */
-const translateCitizenship = (citizenshipNumber) => {
-  const digitMap = {
-    "०": "0",
-    "१": "1",
-    "२": "2",
-    "३": "3",
-    "४": "4",
-    "५": "5",
-    "६": "6",
-    "७": "7",
-    "८": "8",
-    "९": "9",
-  };
-  let y = "";
-  for (let char of citizenshipNumber) {
-    if (char === " ") continue;
-    y += digitMap[char] ?? char;
-  }
-  return y;
-};
-const calculateMarks = (user) => {
-  let totalMarks = 0;
-  const breakdown = {};
-
-  // Disability
-  let disabilityMarks = 0;
-  if (user?.disabilityStatus === "true" || user?.disabilityStatus === true) {
-    if (user?.disabilityClass === "A") {
-      disabilityMarks += 10;
-    } else if (user?.disabilityClass === "B") {
-      disabilityMarks += 8;
-    } else if (user?.disabilityClass === "C") {
-      disabilityMarks += 5;
-    } else if (user?.disabilityClass === "D") {
-      disabilityMarks += 3;
-    }
-    totalMarks += disabilityMarks;
-    breakdown.disabilityStatus = {
-      value: user?.disabilityClass + " Class",
-      marks: disabilityMarks,
-    };
-  }
-  // Illegal Vendor
-  const businessMarks =
-    user?.streetVendor === "true" || user?.streetVendor === true ? 10 : 0;
-  totalMarks += businessMarks;
-  breakdown.streetVendor = {
-    value: user?.streetVendor,
-    marks: businessMarks,
-  };
-
-  // Caste/Ethnicity
-  let casteMarks = 0;
-  const eth = user?.ethnicity?.toLowerCase();
-  if (["brahmin", "chhetri", "other"].includes(eth)) {
-    casteMarks = 0;
-  } else {
-    casteMarks = 10;
-  }
-  totalMarks += casteMarks;
-  breakdown.ethnicity = { value: user?.ethnicity, marks: casteMarks };
-
-  // Residency
-  let residencyMarks = 0;
-
-  if (user?.permanentMunicipality?.toLowerCase() === "kathmandu") {
-    residencyMarks = 30;
-    breakdown.residency = { value: "kathmandu", marks: residencyMarks };
-  } else if (
-    user?.isFromSpecialLocation === "true" ||
-    user?.isFromSpecialLocation === true
-  ) {
-    residencyMarks = 25;
-    breakdown.residency = { value: "landfill site", marks: residencyMarks };
-  } else if (user?.permanentDistrict?.toLowerCase() === "kathmandu district") {
-    residencyMarks = 15;
-    breakdown.residency = { value: "p.d. kathmandu", marks: residencyMarks };
-  } else if (user?.taxPayerStatus === "true" || user?.taxPayerStatus === true) {
-    residencyMarks = 15;
-    breakdown.residency = { value: "Tax Payer", marks: residencyMarks };
-  } else if (user?.permanentProvince?.toLowerCase() === "bagmati province") {
-    residencyMarks = 10;
-    breakdown.residency = { value: "bagmati", marks: residencyMarks };
-  } else {
-    residencyMarks = 5;
-    breakdown.residency = { value: "other", marks: residencyMarks };
-  }
-  totalMarks += residencyMarks;
-
-  // Last year applicant
-  const lastYearCondition =
-    user?.registeredPrev === "true" || user?.registeredPrev === true;
-  const notTrainedCondition =
-    user?.alreadyTakenTraining === "false" ||
-    user?.alreadyTakenTraining === false;
-  const lastYearMarks = lastYearCondition && notTrainedCondition ? 40 : 0;
-  totalMarks += lastYearMarks;
-  breakdown.lastYearApplicant = {
-    value: {
-      registeredPrev: user?.registeredPrev,
-      alreadyTakenTraining: user?.alreadyTakenTraining,
-    },
-    marks: lastYearMarks,
-  };
-
-  return {
-    totalMarks,
-    breakdown,
-  };
-};
-
 const userInitialRegistration = async (req, res) => {
   try {
     const {
       fullName,
       gender,
-      ethnicity,
-      dateOfBirth,
-      age,
       mobileNumber,
-      alternativeContact,
       email,
-      taxPayerStatus,
-      streetVendor,
-      citizenshipNumber,
-      citizenshipIssuedDistrict,
-      disabilityStatus,
-      appliedBeforeSeepMela,
-      isFromSpecialLocation,
-      permanentProvince,
-      permanentDistrict,
-      permanentMunicipality,
-      permanentWardNo,
-      sameAsPermanent,
-      temporaryProvince,
-      temporaryDistrict,
-      temporaryMunicipality,
-      temporaryWardNo,
-      educationLevel,
-      sectorOfInterest,
-      registeredPrev,
-      alreadyTakenTraining,
-      disabilityClass,
-      taxPayerNumber,
-      selectedOccupations,
-      landfillSiteResident,
+      address,
+      institution
     } = req.body;
 
     // Validate required fields
-    if (
-      !mobileNumber ||
-      !fullName ||
-      !citizenshipNumber ||
-      !registeredPrev ||
-      !alreadyTakenTraining ||
-      !permanentMunicipality ||
-      age === "undefined" ||
-      age === undefined
-    ) {
+    if (!mobileNumber || !fullName || !address) {
       return res.status(400).json({
         success: false,
-        message:
-          "Missing required fields: mobileNumber, fullName, citizenshipNumber, registeredPrev, alreadyTakenTraining, age, address",
-      });
-    }
-
-    if (age < 18 || age > 58) {
-      return res.status(400).json({
-        success: false,
-        message: "Age should be between 18 and 58",
+        message: "Missing required fields: mobileNumber, fullName, address",
       });
     }
 
@@ -236,21 +82,6 @@ const userInitialRegistration = async (req, res) => {
       });
     }
 
-    let { totalMarks, breakdown } = calculateMarks(req.body);
-
-    const hasEnglish = /[0-9]/.test(citizenshipNumber);
-    const hasNepali = /[०-९]/.test(citizenshipNumber);
-
-    if (hasEnglish && hasNepali) {
-      return res.status(400).json({
-        success: false,
-        message: "Error Invalid Citizenship Number",
-      });
-    }
-    let newCitizenshipNumber = citizenshipNumber.replace(/\s+/g, "");
-    if (hasNepali) {
-      newCitizenshipNumber = translateCitizenship(citizenshipNumber);
-    }
     // Check for existing user
     let existingUser;
     if (email) {
@@ -262,91 +93,53 @@ const userInitialRegistration = async (req, res) => {
       }
 
       existingUser = await User.findOne({
-        $or: [
-          { email },
-          { mobileNumber },
-          { citizenshipNumber: newCitizenshipNumber },
-        ],
+        $or: [{ email }, { mobileNumber }],
       });
     } else {
-      existingUser = await User.findOne({
-        $or: [{ mobileNumber }, { citizenshipNumber: newCitizenshipNumber }],
-      });
+      existingUser = await User.findOne({ mobileNumber });
     }
+
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message:
-          "User is already registered with this email address, citizenship or mobile number",
+        message: "User is already registered with this email or mobile number",
       });
     }
 
+    // Generate password and applicant ID
     const password = generateStrongPassword(8);
     const hashedPassword = await bcrypt.hash(password, 10);
     const Counter = (await getNextIdNumber()).toString().padStart(4, "0");
+    const applicantId = "MISON" + Counter;
 
-    const applicantId = "KMC" + Counter;
-    // Create new user with all the fields from formData
+    // Create new user with simplified fields
     const newUser = new User({
       fullName,
-      applicantId,
-      marksObtained: totalMarks,
-      totalMarks: totalMarks,
-      marksBreakdown: breakdown,
-      password: hashedPassword,
       gender,
-      taxPayerStatus,
-      ethnicity,
-      dateOfBirth,
-      age,
       mobileNumber,
-      alternativeContact,
       email,
-      citizenshipNumber: newCitizenshipNumber,
-      citizenshipIssuedDistrict,
-      disabilityStatus:
-        disabilityStatus === "true" || disabilityStatus === true,
-      appliedBeforeSeepMela:
-        appliedBeforeSeepMela === "true" || appliedBeforeSeepMela === true,
-      isFromSpecialLocation:
-        isFromSpecialLocation === "true" || isFromSpecialLocation === true,
-      permanentProvince,
-      permanentDistrict,
-      permanentMunicipality,
-      permanentWardNo,
-      sameAsPermanent: sameAsPermanent === "true" || sameAsPermanent === true,
-      streetVendor: streetVendor === "true" || streetVendor === true,
-      temporaryProvince,
-      temporaryDistrict,
-      temporaryMunicipality,
-      temporaryWardNo,
-      educationLevel,
-      sectorOfInterest,
-      registeredPrev: registeredPrev === "true" || registeredPrev === true,
-      alreadyTakenTraining:
-        alreadyTakenTraining === "true" || alreadyTakenTraining === true,
-      disabilityClass,
-      taxPayerNumber,
-      selectedOccupations,
-      landfillSiteResident,
+      address,
+      institution,
+      password: hashedPassword,
+      applicantId,
+      passwordChanged: false,
+      OTPVerified: false,
+      loginAttempts: 0,
+      isLocked: false,
+      role: "user"
     });
 
     await newUser.save();
 
-    // Create registration notification with explicit type field
+    // Create registration notification
     const regNote = await RegNotification.create({
       message: `New registration – ${newUser.fullName}`,
       registrant: newUser._id,
-      type: "registration", // Explicitly set the type field
+      type: "registration",
       readBy: [],
     });
 
-    // Log notification creation
-    // console.log(
-    //   `Registration notification created: ${regNote._id} for user ${newUser.fullName}`
-    // );
-
-    // Emit notification to admin room with proper structure
+    // Emit notification to admin room
     if (req.io) {
       const notificationData = {
         _id: regNote._id,
@@ -361,44 +154,64 @@ const userInitialRegistration = async (req, res) => {
         readBy: [],
       };
 
-      // Debug log before emitting
-
-      // Only emit to admins room
       req.io.to("admins").emit("receiveRegNotification", notificationData);
-
-      // Log after emitting
     } else {
       console.warn("Socket (req.io) not available - notification not emitted");
     }
 
-    // Send SMS confirmation
-    //     const smsText = `धन्यवाद!
-    // तपाईंको तालिम आवेदन फारम सफलतापूर्वक दर्ता भएको छ। थप जानकारीको लागि तपाईंलाई पुन: म्यासेज आउनेछ।
-    // आवेदक आइडी: ${applicantId}
-    // कृपया आफ्नो आवेदक आइडी सुरक्षित राख्नु होला।
-    // सीप मेला २०८२,
-    // का.म.पा.`;
-    //     await sendSMS({ mobile: mobileNumber, message: smsText });
-    //     if (email) {
-    //       await sendEmail({
-    //         from: "tiu.kmc@gmail.com",
-    //         to: email,
-    //         subject: "Welcome To SeepMela",
-    //         html: welcomeEmail(email, fullName),
-    //       });
-    //     }
-    const userResponse = newUser.toObject();
+    // Send SMS confirmation - REQUIRED for registration success
+    const smsText = `Thank you!
+Your registration for "Mergers and Restructuring of Microfinance Institutions: Opportunities and Challenges" is successful.
+Date: Friday, 30th Jeshtha, 2082
+Venue: Hotel Yellow Pagoda, Jamal
+Applicant ID: ${applicantId}
+Please keep your applicant ID safe.
+Microfinance Society of Nepal (MiSoN)`;
 
-    await newUser.save();
+    try {
+      await sendSMS({ mobile: mobileNumber, message: smsText });
+    } catch (smsError) {
+      console.error("SMS sending failed:", smsError);
+      // Delete the user if SMS fails
+      await User.findByIdAndDelete(newUser._id);
+      return res.status(500).json({
+        success: false,
+        message: "Registration failed: Unable to send SMS confirmation",
+        error: smsError.message,
+      });
+    }
+
+    // // Send welcome email if email provided (optional - won't fail registration)
+    // if (email) {
+    //   try {
+    //     await sendEmail({
+    //       from: "tiu.kmc@gmail.com",
+    //       to: email,
+    //       subject: "Welcome To SeepMela",
+    //       html: welcomeEmail(email, fullName),
+    //     });
+    //   } catch (emailError) {
+    //     console.error("Email sending failed:", emailError);
+    //     // Email failure doesn't affect registration
+    //   }
+    // }
+
+    // Log message
     const newMessageLog = new MessageLog({
       message: applicantId,
       mobileNumber: mobileNumber,
     });
     await newMessageLog.save();
+
     return res.status(201).json({
       success: true,
       message: "Registration successful!",
+      data: {
+        applicantId: newUser.applicantId,
+        fullName: newUser.fullName
+      }
     });
+
   } catch (error) {
     console.error("Registration Error:", error);
     return res.status(500).json({
@@ -2088,9 +1901,9 @@ const getAllAttendees = async (req, res) => {
         ) {
           return sortMarks === "timeAsc"
             ? a.attendance.originalCheckInTime -
-                b.attendance.originalCheckInTime // Earliest first
+            b.attendance.originalCheckInTime // Earliest first
             : b.attendance.originalCheckInTime -
-                a.attendance.originalCheckInTime; // Latest first
+            a.attendance.originalCheckInTime; // Latest first
         }
 
         // If only one has check-in time, that one comes first
