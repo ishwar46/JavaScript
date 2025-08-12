@@ -6,7 +6,7 @@ console.log(a)
 a = "Ishwar"
 console.log(a)
 
-let ishwar = 7 
+let ishwar = 7
 
 console.log(ishwar)
 
