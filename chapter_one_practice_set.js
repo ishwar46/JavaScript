@@ -35,6 +35,11 @@ const dict = {
     smile: "smile"
 }
 
+const newDict = {
+    test: "test",
+    practice: "practice set"
+}
+
 console.log(dict.yakka)
 
 
